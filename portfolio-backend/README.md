@@ -286,3 +286,27 @@ Gebruik bijvoorbeeld:
   <Route path="/admin/projects/new" element={<NewProjectPage />} />
 </Route>
 ```
+
+## Blog gebruiken
+
+Open `/blog/` op de backend-URL. Deze pagina bevat een publiek overzicht, volledige berichten en **Blog beheren**. Log in met je bestaande admin-account. Voeg een link naar deze URL toe aan de navigatie van je portfolio; deze repository bevat de backend en geen bestaande React-frontend.
+
+Maak een bericht, bewaar het als concept, upload media en publiceer het wanneer het klaar is. Concepten zijn alleen via de beveiligde beheerroutes beschikbaar. Publicatie vereist titel, samenvatting, context, proces, leerinzicht, reflectie, bronnen en minstens één voor- en één na-afbeelding. Planning is optioneel. Bij AI-gebruik zijn de AI-bijdrage en eigen bijdrage verplicht. De aanbevolen schrijflengte wordt in het formulier toegelicht; er is geen automatische beoordeling van de inhoud.
+
+Foto’s en video’s hebben geen vaste aantallimiet per bericht. Uploads worden afzonderlijk verwerkt via tijdelijke schijfopslag, zodat een grote selectie niet volledig in servergeheugen wordt geladen. Per bestand geldt 100 MB; Cloudinary-abonnement, providerlimieten en servercapaciteit blijven van toepassing. Ondersteund: JPG, PNG, WebP, GIF, AVIF, MP4, WebM en MOV. Kies een rol (voor, na, proces, mislukte poging of referentie) en voeg eventueel een bijschrift en credit toe vóór uploaden. Mediabestanden worden direct opgeslagen; teksten met Concept opslaan of Publiceren. Verwijderen ruimt ook Cloudinary-media op.
+
+### Blog API
+
+- `GET /api/blog?page=1`: gepubliceerde berichten, 12 per pagina, met `posts`, `total`, `page`, `pages`.
+- `GET /api/blog/:slug`: volledig gepubliceerd bericht.
+- `GET /api/blog/admin`: beveiligde lijst van alle berichten.
+- `GET /api/blog/admin/:id`: beveiligd volledig bericht, inclusief concepten.
+- `POST /api/blog`: JSON `{ "title": "Mijn concrete titel" }`, maakt een concept.
+- `PUT /api/blog/:id`: JSON met `title`, `summary`, `context`, `process`, `learning`, `reflection`, `planning`, `sources`, `aiUsed`, `aiContribution`, `humanContribution`, `status` (`draft` of `published`). De slug blijft stabiel bij titelwijzigingen.
+- `POST /api/blog/:id/media`: FormData met één `file`, `role` (`before`, `after`, `process`, `failed`, `reference`), optioneel `caption` en `credit`. Herhaal voor zoveel bestanden als nodig.
+- `DELETE /api/blog/:id/media/:mediaId`: verwijdert media. Verplicht voor/na-beeld kan alleen verwijderd worden wanneer het bericht een concept is, of wanneer nog ander beeld met dezelfde rol bestaat.
+- `DELETE /api/blog/:id`: verwijdert het bericht en de media.
+
+Alle beheerroutes gebruiken `Authorization: Bearer TOKEN`. Tekst wordt als gewone tekst getoond; HTTP(S)-links in bronnen zijn klikbaar. De beheerpagina bewaart de login alleen in sessionStorage.
+
+Blogtests uitvoeren: `node --test test/*.test.js` vanuit `portfolio-backend`. De tests vereisen geen echte database of Cloudinary-account.

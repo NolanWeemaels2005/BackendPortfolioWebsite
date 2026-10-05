@@ -5,6 +5,8 @@ import mongoose from "mongoose";
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
 import projectRoutes from "./routes/projectRoutes.js";
+import blogRoutes from "./routes/blogRoutes.js";
+import { fileURLToPath } from "node:url";
 
 dotenv.config();
 
@@ -36,6 +38,7 @@ app.use(
 );
 
 app.use(express.json());
+app.use("/blog", express.static(fileURLToPath(new URL("../public", import.meta.url))));
 
 app.get("/", (req, res) => {
   res.json({
@@ -70,12 +73,16 @@ const requireDatabase = (req, res, next) => {
 
 app.use("/api/auth", requireDatabase, authRoutes);
 app.use("/api/projects", requireDatabase, projectRoutes);
+app.use("/api/blog", requireDatabase, blogRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: "Route niet gevonden." });
 });
 
 app.use((error, req, res, next) => {
+  if (error.status === 400 || error.name === "ValidationError") {
+    return res.status(400).json({ message: error.message });
+  }
   if (error.name === "MulterError") {
     return res.status(400).json({
       message: "Upload validatie mislukt.",
