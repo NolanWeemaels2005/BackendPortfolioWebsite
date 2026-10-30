@@ -23,6 +23,7 @@ const schema = new mongoose.Schema({
   sources: { type: String, default: "", trim: true },
   status: { type: String, enum: ["draft", "published"], default: "draft" },
   publishedAt: { type: Date, default: null },
+  mediaLayout: { type: [{ _id: false, mediaId: { type: String, required: true }, section: { type: String, enum: ["summary", "context", "process", "learning", "reflection", "aiContribution", "humanContribution", "planning", "sources"], required: true } }], default: [] },
   media: [mediaSchema]
 }, { timestamps: true });
 export default mongoose.model("BlogPost", schema);

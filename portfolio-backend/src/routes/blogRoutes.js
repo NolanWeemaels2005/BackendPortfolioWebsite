@@ -70,6 +70,15 @@ router.put("/:id", auth, wrap(async (req, res) => {
     if (!["draft", "published"].includes(req.body.status)) return res.status(400).json({ message: "Ongeldige status." });
     post.status = req.body.status;
   }
+  if (req.body.mediaLayout !== undefined) {
+    const layout = req.body.mediaLayout;
+    const sections = ["summary", "context", "process", "learning", "reflection", "aiContribution", "humanContribution", "planning", "sources"];
+    const ids = new Set(post.media.map(item => item.id));
+    if (!Array.isArray(layout) || layout.some(item => !item || !ids.has(item.mediaId) || !sections.includes(item.section)) || new Set(layout.map(item => item.mediaId)).size !== layout.length) {
+      return res.status(400).json({ message: "Ongeldige fotoposities. Vernieuw het bericht en probeer opnieuw." });
+    }
+    post.mediaLayout = layout.map(({ mediaId, section }) => ({ mediaId, section }));
+  }
   if (post.status === "published") {
     const errors = publicationErrors(post);
     if (errors.length) return res.status(400).json({ message: errors.join(" "), errors });
@@ -111,6 +120,7 @@ router.delete("/:id/media/:mediaId", auth, wrap(async (req, res) => {
     return res.status(400).json({ message: "Zet het bericht eerst op concept voordat je verplicht beeld verwijdert." });
   }
   await cloudinary.uploader.destroy(media.publicId, { resource_type: media.type });
+  post.mediaLayout = (post.mediaLayout || []).filter(item => item.mediaId !== media.id);
   media.deleteOne();
   await post.save();
   res.json(post);
