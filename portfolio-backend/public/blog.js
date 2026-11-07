@@ -30,6 +30,7 @@ async function api(path='',options={}) {
 function gallery(post,parent,editable=false,onChange=()=>{}) {
   const grid=el('div',undefined,parent,'gallery');
   for(const media of post.media) {
+    if(media.heroOnly && !editable) continue;
     const fig=el('figure',undefined,grid);
     const image=el(media.type==='video'?'video':'img',undefined,fig);
     image.src=media.url;
@@ -90,6 +91,19 @@ async function edit(post) {
     heroSelect.value=currentPost.media.some(media=>media._id===selected && media.type==='image') ? selected : '';
   }
   refreshHero(post.heroMediaId || '');
+  const heroUploadLabel=el('label','Aparte hero-afbeelding uploaden',form);
+  const heroFile=el('input',undefined,heroUploadLabel);heroFile.type='file';heroFile.accept='image/jpeg,image/png,image/webp,image/gif,image/avif';
+  el('small','Deze foto verschijnt alleen als hero. Upload eerst en sla daarna je hero-keuze op.',heroUploadLabel);
+  button('Hero uploaden',async()=>{
+    const file=heroFile.files[0];if(!file)throw new Error('Kies eerst een afbeelding.');
+    if(!file.type.startsWith('image/') || file.size>100*1024*1024)throw new Error('Kies een afbeelding van maximaal 100 MB.');
+    heroFile.disabled=true;
+    try {const previous=new Set(currentPost.media.map(media=>media._id));const body=new FormData();body.append('file',file);body.append('heroOnly','true');
+      currentPost=await api(`/${post._id}/media`,{method:'POST',body});
+      const added=currentPost.media.find(media=>media.heroOnly && !previous.has(media._id));
+      refreshHero(added?._id || '');mediaBox.replaceChildren();gallery(currentPost,mediaBox,true,()=>refreshHero());heroFile.value='';message.textContent='Hero geüpload. Sla het bericht op om je keuze te bewaren.';
+    }finally{heroFile.disabled=false;}
+  },form);
   const actions=el('div',undefined,form,'actions');
   async function save(status) {const body=Object.fromEntries(Object.entries(inputs).map(([key,input])=>[key,input.value]));body.aiUsed=ai.checked;body.status=status;body.heroMediaId=heroSelect.value;currentPost=await api(`/${post._id}`,{method:'PUT',body});message.textContent=status==='published'?'Bericht gepubliceerd.':'Concept opgeslagen.';}
   button('Concept opslaan',()=>save('draft'),actions);button('Publiceren',()=>save('published'),actions);

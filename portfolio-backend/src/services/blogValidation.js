@@ -5,7 +5,7 @@ export function publicationErrors(post) {
     if (!post[field]?.trim()) errors.push(`${field} is verplicht voor publicatie.`);
   }
   for (const role of ["before", "after"]) {
-    if (!post.media.some(item => item.role === role && item.type === "image")) {
+    if (!post.media.some(item => item.role === role && item.type === "image" && !item.heroOnly)) {
       errors.push(`Voeg minstens één ${role === "before" ? "voor" : "na"}-afbeelding toe.`);
     }
   }

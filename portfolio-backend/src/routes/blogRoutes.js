@@ -80,7 +80,7 @@ router.put("/:id", auth, wrap(async (req, res) => {
   if (req.body.mediaLayout !== undefined) {
     const layout = req.body.mediaLayout;
     const sections = ["summary", "context", "process", "learning", "reflection", "aiContribution", "humanContribution", "planning", "sources"];
-    const ids = new Set(post.media.map(item => item.id));
+    const ids = new Set(post.media.filter(item => !item.heroOnly).map(item => item.id));
     if (!Array.isArray(layout) || layout.some(item => !item || !ids.has(item.mediaId) || !sections.includes(item.section)) || new Set(layout.map(item => item.mediaId)).size !== layout.length) {
       return res.status(400).json({ message: "Ongeldige fotoposities. Vernieuw het bericht en probeer opnieuw." });
     }
@@ -105,8 +105,11 @@ router.post("/:id/media", auth, wrap(async (req, res, next) => {
   try {
     if (!roles.includes(req.body.role || "process")) return res.status(400).json({ message: "Ongeldige beeldrol." });
     const type = req.file.mimetype.startsWith("video/") ? "video" : "image";
+    if (req.body.heroOnly !== undefined && !["true", "false"].includes(req.body.heroOnly)) return res.status(400).json({ message: "Ongeldige hero-upload." });
+    const heroOnly = req.body.heroOnly === "true";
+    if (heroOnly && type !== "image") return res.status(400).json({ message: "Kies een afbeelding voor de hero, geen video." });
     result = await cloudinary.uploader.upload(req.file.path, { folder: "portfolio/blog", resource_type: type });
-    const media = { url: result.secure_url, publicId: result.public_id, type, role: req.body.role || "process", caption: req.body.caption || "", credit: req.body.credit || "" };
+    const media = { url: result.secure_url, publicId: result.public_id, type, heroOnly, role: req.body.role || "process", caption: req.body.caption || "", credit: req.body.credit || "" };
     // Atomic append keeps concurrent uploads from overwriting one another.
     const post = await BlogPost.findByIdAndUpdate(req.params.id, { $push: { media } }, { new: true, runValidators: true });
     if (!post) throw new Error("Bericht werd tijdens de upload verwijderd.");

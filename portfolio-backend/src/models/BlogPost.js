@@ -6,6 +6,7 @@ const mediaSchema = new mongoose.Schema({
   type: { type: String, enum: ["image", "video"], required: true },
   role: { type: String, enum: ["before", "after", "process", "failed", "reference"], default: "process" },
   caption: { type: String, default: "", trim: true },
+  heroOnly: { type: Boolean, default: false },
   credit: { type: String, default: "", trim: true }
 });
 const schema = new mongoose.Schema({
