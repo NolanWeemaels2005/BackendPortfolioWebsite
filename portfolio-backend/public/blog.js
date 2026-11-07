@@ -27,7 +27,7 @@ async function api(path='',options={}) {
   if(!response.ok) throw new Error(data.message || 'Aanvraag mislukt.');
   return data;
 }
-function gallery(post,parent,editable=false) {
+function gallery(post,parent,editable=false,onChange=()=>{}) {
   const grid=el('div',undefined,parent,'gallery');
   for(const media of post.media) {
     const fig=el('figure',undefined,grid);
@@ -35,7 +35,7 @@ function gallery(post,parent,editable=false) {
     image.src=media.url;
     if(media.type==='video') {image.controls=true;image.preload='metadata';} else {image.alt=media.caption || roles[media.role];image.loading='lazy';}
     el('figcaption',`${roles[media.role]}${media.caption ? ' — '+media.caption : ''}${media.credit ? '\nCredit: '+media.credit : ''}`,fig);
-    if(editable) button('Verwijderen',async()=>{if(!confirm('Dit bestand verwijderen?'))return; currentPost=await api(`/${post._id}/media/${media._id}`,{method:'DELETE'});fig.remove();},fig);
+    if(editable) button('Verwijderen',async()=>{if(!confirm('Dit bestand verwijderen?'))return; currentPost=await api(`/${post._id}/media/${media._id}`,{method:'DELETE'});fig.remove();onChange();},fig);
   }
 }
 async function listing(page=1) {
@@ -50,6 +50,8 @@ async function listing(page=1) {
 async function read(slug) {
   const post=await api(`/${encodeURIComponent(slug)}`); content.replaceChildren();
   el('a','← Alle berichten').href='#';el('h1',post.title);el('p',post.summary,content,'summary');
+  const hero=post.media.find(media=>media._id===post.heroMediaId && media.type==='image');
+  if(hero) {const figure=el('figure',undefined,content,'post-hero');const image=el('img',undefined,figure);image.src=hero.url;image.alt=hero.caption || post.title;image.fetchPriority='high';if(hero.caption || hero.credit)el('figcaption',[hero.caption,hero.credit ? `Credit: ${hero.credit}` : ''].filter(Boolean).join(' — '),figure);}
   for(const [key,title] of fields.slice(2)) {
     if(!post[key] || (['aiContribution','humanContribution'].includes(key)&&!post.aiUsed))continue;
     const section=el('section',undefined,content,key==='learning'?'learning':'');el('h2',title,section);
@@ -58,7 +60,7 @@ async function read(slug) {
     if(key==='sources') {
       for(const part of post[key].split(/(https?:\/\/[^\s]+)/g)) {if(/^https?:\/\//.test(part)){const a=el('a',part,p);a.href=part;a.target='_blank';a.rel='noopener noreferrer';}else p.append(document.createTextNode(part));}
     }else p.textContent=post[key];
-    if(key==='process') gallery(post,section);
+    if(key==='process') gallery({...post,media:post.media.filter(media=>media._id!==hero?._id)},section);
   }
 }
 function login() {
@@ -79,20 +81,29 @@ async function edit(post) {
   const form=el('form');const inputs={};
   for(const [key,title,hint] of fields) {const label=el('label',title,form);el('small',hint,label);const input=el(['title','summary'].includes(key)?'input':'textarea',undefined,label);input.value=post[key]||'';inputs[key]=input;}
   const aiLabel=el('label',undefined,form);const ai=el('input',undefined,aiLabel);ai.type='checkbox';ai.checked=post.aiUsed;aiLabel.append(' Ik heb AI gebruikt');
+  const heroLabel=el('label','Hero-afbeelding (optioneel)',form);
+  el('small','Kies een geüploade foto als openingsbeeld. Bewaar je keuze met Concept opslaan of Publiceren.',heroLabel);
+  const heroSelect=el('select',undefined,heroLabel);
+  function refreshHero(selected=heroSelect.value) {
+    heroSelect.replaceChildren();el('option','Geen hero-afbeelding',heroSelect).value='';
+    currentPost.media.filter(media=>media.type==='image').forEach((media,index)=>{el('option',media.caption || `Afbeelding ${index+1} · ${roles[media.role]}`,heroSelect).value=media._id;});
+    heroSelect.value=currentPost.media.some(media=>media._id===selected && media.type==='image') ? selected : '';
+  }
+  refreshHero(post.heroMediaId || '');
   const actions=el('div',undefined,form,'actions');
-  async function save(status) {const body=Object.fromEntries(Object.entries(inputs).map(([key,input])=>[key,input.value]));body.aiUsed=ai.checked;body.status=status;currentPost=await api(`/${post._id}`,{method:'PUT',body});message.textContent=status==='published'?'Bericht gepubliceerd.':'Concept opgeslagen.';}
+  async function save(status) {const body=Object.fromEntries(Object.entries(inputs).map(([key,input])=>[key,input.value]));body.aiUsed=ai.checked;body.status=status;body.heroMediaId=heroSelect.value;currentPost=await api(`/${post._id}`,{method:'PUT',body});message.textContent=status==='published'?'Bericht gepubliceerd.':'Concept opgeslagen.';}
   button('Concept opslaan',()=>save('draft'),actions);button('Publiceren',()=>save('published'),actions);
   button('Bericht verwijderen',async()=>{if(!confirm('Bericht en alle media definitief verwijderen?'))return;await api(`/${post._id}`,{method:'DELETE'});await admin();},actions).className='danger';
   form.onsubmit=e=>e.preventDefault();
   el('h2','Foto’s en video’s');el('p','Geen limiet op het aantal bestanden per bericht. Uploads gebeuren één voor één; maximaal 100 MB per bestand en binnen je Cloudinary-abonnement. Minstens één voor- en één na-afbeelding zijn verplicht voor publicatie.');
-  const mediaBox=el('div');gallery(post,mediaBox,true);
+  const mediaBox=el('div');gallery(post,mediaBox,true,()=>refreshHero());
   const roleLabel=el('label','Rol van deze media');const role=el('select',undefined,roleLabel);for(const [value,title] of Object.entries(roles)){const option=el('option',title,role);option.value=value;}
   const captionLabel=el('label','Bijschrift');const caption=el('input',undefined,captionLabel);
   const creditLabel=el('label','Credit / maker');const credit=el('input',undefined,creditLabel);
   const fileLabel=el('label','Bestanden selecteren');const files=el('input',undefined,fileLabel);files.type='file';files.multiple=true;files.accept='image/jpeg,image/png,image/webp,image/gif,image/avif,video/mp4,video/webm,video/quicktime';
   const uploadButton=button('Upload geselecteerde bestanden',async()=>{
     const selected=[...files.files];if(!selected.length)throw new Error('Selecteer eerst bestanden.');uploadButton.disabled=true;
-    try {for(let i=0;i<selected.length;i++){const file=selected[i];if(file.size>100*1024*1024)throw new Error(`${file.name} is groter dan 100 MB.`);message.textContent=`Upload ${i+1}/${selected.length}: ${file.name}`;const body=new FormData();body.append('file',file);body.append('role',role.value);body.append('caption',caption.value);body.append('credit',credit.value);currentPost=await api(`/${post._id}/media`,{method:'POST',body});mediaBox.replaceChildren();gallery(currentPost,mediaBox,true);}files.value='';message.textContent='Media opgeslagen. Je tekst kun je hierboven opslaan of publiceren.';}finally{uploadButton.disabled=false;}
+    try {for(let i=0;i<selected.length;i++){const file=selected[i];if(file.size>100*1024*1024)throw new Error(`${file.name} is groter dan 100 MB.`);message.textContent=`Upload ${i+1}/${selected.length}: ${file.name}`;const body=new FormData();body.append('file',file);body.append('role',role.value);body.append('caption',caption.value);body.append('credit',credit.value);currentPost=await api(`/${post._id}/media`,{method:'POST',body});mediaBox.replaceChildren();gallery(currentPost,mediaBox,true,()=>refreshHero());refreshHero();}files.value='';message.textContent='Media opgeslagen. Je tekst kun je hierboven opslaan of publiceren.';}finally{uploadButton.disabled=false;}
   });
 }
 async function route(){const hash=location.hash.slice(1);if(hash==='admin')return admin();if(hash.startsWith('post/'))return read(hash.slice(5));return listing();}

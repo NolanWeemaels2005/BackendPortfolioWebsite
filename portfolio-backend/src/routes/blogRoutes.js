@@ -70,6 +70,13 @@ router.put("/:id", auth, wrap(async (req, res) => {
     if (!["draft", "published"].includes(req.body.status)) return res.status(400).json({ message: "Ongeldige status." });
     post.status = req.body.status;
   }
+  if (req.body.heroMediaId !== undefined) {
+    const heroId = req.body.heroMediaId;
+    if (typeof heroId !== "string" || (heroId !== "" && !post.media.some(item => item.id === heroId && item.type === "image"))) {
+      return res.status(400).json({ message: "Kies een afbeelding van dit bericht als hero-afbeelding." });
+    }
+    post.heroMediaId = heroId;
+  }
   if (req.body.mediaLayout !== undefined) {
     const layout = req.body.mediaLayout;
     const sections = ["summary", "context", "process", "learning", "reflection", "aiContribution", "humanContribution", "planning", "sources"];
@@ -121,6 +128,7 @@ router.delete("/:id/media/:mediaId", auth, wrap(async (req, res) => {
   }
   await cloudinary.uploader.destroy(media.publicId, { resource_type: media.type });
   post.mediaLayout = (post.mediaLayout || []).filter(item => item.mediaId !== media.id);
+  if (post.heroMediaId === media.id) post.heroMediaId = "";
   media.deleteOne();
   await post.save();
   res.json(post);
